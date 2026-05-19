@@ -89,28 +89,65 @@ void reg_to_reg(CPU &cpu, const char *reg_src, const char *reg_dest) {
   //
 
 namespace Instructions::Arithmetic {
-void add(CPU &cpu, const char *reg_src, const char *reg_dest) {
+void add_reg_to_reg(CPU &cpu, const char *reg_src, const char *reg_dest) {
   auto rs = access_register(cpu, reg_src);
   auto rd = access_register(cpu, reg_dest);
 
   if (rs.has_value() && rd.has_value()) {
-    // handle flags
-    *rd.value() = *rd.value() + *rs.value();
+    uint32_t res = (uint32_t)(*rd.value()) + (uint32_t)(*rs.value());
+    handle_flag(cpu, "ZF", (res == 0));
+    handle_flag(cpu, "SF", (((uint16_t)res & 0x8000) == 1));
+    handle_flag(cpu, "CF", (res > 0xffff));
+    handle_flag(cpu, "OF",
+                ((~(*rd.value() ^ *rs.value()) & (*rd.value() ^ (uint16_t)res) &
+                  0x8000) != 0));
+
+    handle_flag(cpu, "AF", (*rs.value() ^ *rd.value() ^ (uint16_t)(res)));
+    handle_flag(cpu, "PF", ((uint16_t)res & 0xFF));
+    *rd.value() = (uint16_t)res;
   } else {
     std::cerr << "Invalid registers\n";
   }
 }
 
 void add_with_carry(CPU &cpu, const char *reg_src, const char *reg_dest) {
-  auto rs = access_register(cpu, reg_src);
+  if (cpu.reg.flag_reg & 0x0001) {
+    add_with_val(cpu, reg_dest, 1);
+    add_reg_to_reg(cpu, reg_src, reg_dest);
+  }
+}
+
+void add_with_val(CPU &cpu, const char *reg_dest, uint16_t value) {
+  auto rs = access_register(cpu, reg_dest);
+  if (rs.has_value()) {
+    uint32_t res = (uint32_t)(*rs.value()) + (uint32_t)(value);
+    handle_flag(cpu, "ZF", (res == 0));
+    handle_flag(cpu, "SF", (((uint16_t)res & 0x8000) == 1));
+    handle_flag(cpu, "CF", (res > 0xffff));
+    handle_flag(
+        cpu, "OF",
+        ((~(value ^ *rs.value()) & (value ^ (uint16_t)res) & 0x8000) != 0));
+
+    handle_flag(cpu, "AF", (*rs.value() ^ value ^ (uint16_t)(res)));
+    handle_flag(cpu, "PF", ((uint16_t)res & 0xFF));
+    *rs.value() = (uint16_t)res;
+  } else {
+    std::cerr << "Invalid register\n";
+  }
+}
+
+void sub_with_val(CPU &cpu, const char *reg_dest, uint16_t value) {
   auto rd = access_register(cpu, reg_dest);
+  if (rd.has_value()) {
+    // handle flags
+    uint16_t res = *rd.value() - value;
+    handle_flag(cpu, "ZF", *rd.value() == value);
+    handle_flag(cpu, "CF", *rd.value() < value);
+    handle_flag(cpu, "SF", res & 0x8000);
 
-  if (rs.has_value() && rd.has_value()) {
-
-    add(cpu, reg_src, reg_dest);
-    if ((uint32_t)(*rs.value()) + (uint32_t)(*rd.value()) > UINT16_MAX) {
-      auto flags = cpu.reg.flag_reg;
-    }
+    *rd.value() = res;
+  } else {
+    std::cout << "Invalid register name\n";
   }
 }
 } // namespace Instructions::Arithmetic
