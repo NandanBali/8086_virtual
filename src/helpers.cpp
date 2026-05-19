@@ -16,19 +16,19 @@ std::optional<uint16_t *> access_register(CPU &cpu, const char *reg_name) {
     return &(cpu.reg.dx);
   } else if (strcmp("SP", reg_name) == 0) {
     return &(cpu.reg.sp);
-  } else if (strcmp(reg_name, "BP")) {
+  } else if (strcmp(reg_name, "BP") == 0) {
     return &(cpu.reg.bp);
   } else if (strcmp("CS", reg_name) == 0) {
     return &(cpu.reg.cs);
-  } else if (strcmp(reg_name, "DS")) {
+  } else if (strcmp(reg_name, "DS") == 0) {
     return &(cpu.reg.ds);
   } else if (strcmp("SS", reg_name) == 0) {
     return &(cpu.reg.ss);
-  } else if (strcmp(reg_name, "ES")) {
+  } else if (strcmp(reg_name, "ES") == 0) {
     return &(cpu.reg.es);
-  } else if (strcmp(reg_name, "SI")) {
+  } else if (strcmp(reg_name, "SI") == 0) {
     return &(cpu.reg.si);
-  } else if (strcmp(reg_name, "DI")) {
+  } else if (strcmp(reg_name, "DI") == 0) {
     return &(cpu.reg.di);
   }
 

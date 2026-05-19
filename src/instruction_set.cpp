@@ -13,37 +13,43 @@ uint16_t mov_handle(uint8_t val_src, uint16_t val_reg, bool lower) {
 
 namespace Instructions::MOV {
 void direct_16(CPU &cpu, const char *reg, uint16_t value) {
-  if (strcmp(reg, "AX") == 0) {
-    cpu.reg.ax = value;
-  } else if (strcmp(reg, "BX") == 0) {
-    cpu.reg.bx = value;
-  } else if (strcmp(reg, "CX") == 0) {
-    cpu.reg.cx = value;
-  } else if (strcmp(reg, "DX") == 0) {
-    cpu.reg.dx = value;
-  }
+  cpu.load_instr([&cpu, reg, value]() {
+    if (strcmp(reg, "AX") == 0) {
+      cpu.reg.ax = value;
+    } else if (strcmp(reg, "BX") == 0) {
+      cpu.reg.bx = value;
+    } else if (strcmp(reg, "CX") == 0) {
+      cpu.reg.cx = value;
+    } else if (strcmp(reg, "DX") == 0) {
+      cpu.reg.dx = value;
+    }
+  });
 }
 
 void direct_8(CPU &cpu, const char *reg, uint8_t value) {
-  if (strcmp(reg, "AH") == 0) {
-    direct_16(cpu, "AX", mov_handle(value, cpu.reg.ax, false));
-  } else if (strcmp(reg, "AL") == 0) {
-    direct_16(cpu, "AX", mov_handle(value, cpu.reg.ax, true));
-  } else if (strcmp(reg, "BH") == 0) {
-    direct_16(cpu, "BX", mov_handle(value, cpu.reg.bx, false));
-  } else if (strcmp(reg, "BL") == 0) {
-    direct_16(cpu, "BX", mov_handle(value, cpu.reg.bx, true));
-  } else if (strcmp(reg, "CH") == 0) {
-    direct_16(cpu, "CX", mov_handle(value, cpu.reg.cx, false));
-  } else if (strcmp(reg, "CL") == 0) {
-    direct_16(cpu, "CX", mov_handle(value, cpu.reg.cx, true));
-  } else if (strcmp(reg, "DH") == 0) {
-    direct_16(cpu, "DX", mov_handle(value, cpu.reg.dx, false));
-  } else if (strcmp(reg, "DL") == 0) {
-    direct_16(cpu, "DX", mov_handle(value, cpu.reg.dx, true));
-  } else {
-    std::cerr << "Invalid move instruction\n";
-  }
+  cpu.load_instr([&cpu, reg, value]() {
+    auto rd = access_register(cpu, "AX");
+    (void)rd;
+    if (strcmp(reg, "AH") == 0) {
+      cpu.reg.ax = mov_handle(value, cpu.reg.ax, false);
+    } else if (strcmp(reg, "AL") == 0) {
+      cpu.reg.ax = mov_handle(value, cpu.reg.ax, true);
+    } else if (strcmp(reg, "BH") == 0) {
+      cpu.reg.bx = mov_handle(value, cpu.reg.bx, false);
+    } else if (strcmp(reg, "BL") == 0) {
+      cpu.reg.bx = mov_handle(value, cpu.reg.bx, true);
+    } else if (strcmp(reg, "CH") == 0) {
+      cpu.reg.cx = mov_handle(value, cpu.reg.cx, false);
+    } else if (strcmp(reg, "CL") == 0) {
+      cpu.reg.cx = mov_handle(value, cpu.reg.cx, true);
+    } else if (strcmp(reg, "DH") == 0) {
+      cpu.reg.dx = mov_handle(value, cpu.reg.dx, false);
+    } else if (strcmp(reg, "DL") == 0) {
+      cpu.reg.dx = mov_handle(value, cpu.reg.dx, true);
+    } else {
+      std::cerr << "Invalid move instruction\n";
+    }
+  });
 }
 // handles only 16bit to 16bit moves
 void reg_to_reg(CPU &cpu, const char *reg_src, const char *reg_dest) {
@@ -71,15 +77,17 @@ void reg_to_reg(CPU &cpu, const char *reg_src, const char *reg_dest) {
   }
 
   if (reg_src_16 && reg_dest_16) {
-    auto rs = access_register(cpu, reg_src);
-    auto rd = access_register(cpu, reg_dest);
+    cpu.load_instr([&cpu, reg_src, reg_dest]() {
+      auto rs = access_register(cpu, reg_src);
+      auto rd = access_register(cpu, reg_dest);
 
-    if (rs.has_value() && rd.has_value()) {
-      *rd.value() = *rs.value();
-    } else {
-      std::cerr << "Failed to find appropriate 16 bit register for: " << reg_src
-                << " & " << reg_dest << std::endl;
-    }
+      if (rs.has_value() && rd.has_value()) {
+        *rd.value() = *rs.value();
+      } else {
+        std::cerr << "Failed to find appropriate 16 bit register for: "
+                  << reg_src << " & " << reg_dest << std::endl;
+      }
+    });
   } else {
     std::cout << "Error parsing registers" << std::endl;
   }
@@ -90,64 +98,74 @@ void reg_to_reg(CPU &cpu, const char *reg_src, const char *reg_dest) {
 
 namespace Instructions::Arithmetic {
 void add_reg_to_reg(CPU &cpu, const char *reg_src, const char *reg_dest) {
-  auto rs = access_register(cpu, reg_src);
-  auto rd = access_register(cpu, reg_dest);
+  cpu.load_instr([&cpu, reg_src, reg_dest]() {
+    auto rs = access_register(cpu, reg_src);
+    auto rd = access_register(cpu, reg_dest);
 
-  if (rs.has_value() && rd.has_value()) {
-    uint32_t res = (uint32_t)(*rd.value()) + (uint32_t)(*rs.value());
-    handle_flag(cpu, "ZF", (res == 0));
-    handle_flag(cpu, "SF", (((uint16_t)res & 0x8000) == 1));
-    handle_flag(cpu, "CF", (res > 0xffff));
-    handle_flag(cpu, "OF",
-                ((~(*rd.value() ^ *rs.value()) & (*rd.value() ^ (uint16_t)res) &
-                  0x8000) != 0));
+    if (rs.has_value() && rd.has_value()) {
+      uint32_t res = (uint32_t)(*rd.value()) + (uint32_t)(*rs.value());
+      handle_flag(cpu, "ZF", (res == 0));
+      handle_flag(cpu, "SF", (((uint16_t)res & 0x8000) == 1));
+      handle_flag(cpu, "CF", (res > 0xffff));
+      handle_flag(cpu, "OF",
+                  ((~(*rd.value() ^ *rs.value()) &
+                    (*rd.value() ^ (uint16_t)res) & 0x8000) != 0));
 
-    handle_flag(cpu, "AF", (*rs.value() ^ *rd.value() ^ (uint16_t)(res)));
-    handle_flag(cpu, "PF", ((uint16_t)res & 0xFF));
-    *rd.value() = (uint16_t)res;
-  } else {
-    std::cerr << "Invalid registers\n";
-  }
+      handle_flag(cpu, "AF", (*rs.value() ^ *rd.value() ^ (uint16_t)(res)));
+      handle_flag(cpu, "PF", ((uint16_t)res & 0xFF));
+      *rd.value() = (uint16_t)res;
+    } else {
+      std::cerr << "Invalid registers\n";
+    }
+  });
 }
 
 void add_with_carry(CPU &cpu, const char *reg_src, const char *reg_dest) {
-  if (cpu.reg.flag_reg & 0x0001) {
-    add_with_val(cpu, reg_dest, 1);
-    add_reg_to_reg(cpu, reg_src, reg_dest);
-  }
+  cpu.load_instr([&cpu, reg_src, reg_dest]() {
+    if (cpu.reg.flag_reg & 0x0001) {
+      auto rs = access_register(cpu, reg_src);
+      auto rd = access_register(cpu, reg_dest);
+      if (rs.has_value() && rd.has_value()) {
+        *rd.value() = *rd.value() + *rs.value() + 1;
+      }
+    }
+  });
 }
 
 void add_with_val(CPU &cpu, const char *reg_dest, uint16_t value) {
-  auto rs = access_register(cpu, reg_dest);
-  if (rs.has_value()) {
-    uint32_t res = (uint32_t)(*rs.value()) + (uint32_t)(value);
-    handle_flag(cpu, "ZF", (res == 0));
-    handle_flag(cpu, "SF", (((uint16_t)res & 0x8000) == 1));
-    handle_flag(cpu, "CF", (res > 0xffff));
-    handle_flag(
-        cpu, "OF",
-        ((~(value ^ *rs.value()) & (value ^ (uint16_t)res) & 0x8000) != 0));
+  cpu.load_instr([&cpu, reg_dest, value]() {
+    auto rs = access_register(cpu, reg_dest);
+    if (rs.has_value()) {
+      uint32_t res = (uint32_t)(*rs.value()) + (uint32_t)(value);
+      handle_flag(cpu, "ZF", (res == 0));
+      handle_flag(cpu, "SF", (((uint16_t)res & 0x8000) == 1));
+      handle_flag(cpu, "CF", (res > 0xffff));
+      handle_flag(
+          cpu, "OF",
+          ((~(value ^ *rs.value()) & (value ^ (uint16_t)res) & 0x8000) != 0));
 
-    handle_flag(cpu, "AF", (*rs.value() ^ value ^ (uint16_t)(res)));
-    handle_flag(cpu, "PF", ((uint16_t)res & 0xFF));
-    *rs.value() = (uint16_t)res;
-  } else {
-    std::cerr << "Invalid register\n";
-  }
+      handle_flag(cpu, "AF", (*rs.value() ^ value ^ (uint16_t)(res)));
+      handle_flag(cpu, "PF", ((uint16_t)res & 0xFF));
+      *rs.value() = (uint16_t)res;
+    } else {
+      std::cerr << "Invalid register\n";
+    }
+  });
 }
 
 void sub_with_val(CPU &cpu, const char *reg_dest, uint16_t value) {
-  auto rd = access_register(cpu, reg_dest);
-  if (rd.has_value()) {
-    // handle flags
-    uint16_t res = *rd.value() - value;
-    handle_flag(cpu, "ZF", *rd.value() == value);
-    handle_flag(cpu, "CF", *rd.value() < value);
-    handle_flag(cpu, "SF", res & 0x8000);
+  cpu.load_instr([&cpu, reg_dest, value]() {
+    auto rd = access_register(cpu, reg_dest);
+    if (rd.has_value()) {
+      uint16_t res = *rd.value() - value;
+      handle_flag(cpu, "ZF", *rd.value() == value);
+      handle_flag(cpu, "CF", *rd.value() < value);
+      handle_flag(cpu, "SF", res & 0x8000);
 
-    *rd.value() = res;
-  } else {
-    std::cout << "Invalid register name\n";
-  }
+      *rd.value() = res;
+    } else {
+      std::cout << "Invalid register name\n";
+    }
+  });
 }
 } // namespace Instructions::Arithmetic
